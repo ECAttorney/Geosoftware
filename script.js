@@ -1,6 +1,7 @@
 /**
-* Musterlösung zu Aufgabe 2, Geosoft 1, SoSe 2022
-* @author {Name der studierenden Person}   matr.Nr.: {Matrikelnummer}
+* Lösung zu Aufgabe 3, Geosoft 1, SoSe 2022
+* @author Luca Hesse   Matr.-Nr.: 504871 
+* @version 1.0.0
 */
 
 "use strict";
@@ -29,7 +30,12 @@ function onLoad() {
       }
     }
   );
-
+  document.getElementById("getDataBtn").addEventListener("click",
+  () => {
+    getData();
+  }
+  );
+ 
   //daten vorbereiten und main ausführen
   pois = JSON.parse(pois);
   main(point, pointcloud);
@@ -196,6 +202,53 @@ function drawTable(results) {
 }
 
 /**
+ * @function drawTable1
+ * @desc in this function the first table is being added to the page with important attributes of the bus station
+ * @param {*} results array of bus stations that are nearby
+ */
+function drawTable1(results) {
+
+  // table that is getting added to the page
+  var table = document.getElementById("resultTable1");
+  
+  // iterate trough the array and add necessary attributes to table
+  for (var j = 0; j < results.length; j++) {
+    var newRow = table.insertRow(j + 1);
+    var cel1 = newRow.insertCell(0);
+    var cel2 = newRow.insertCell(1);
+    var cel3 = newRow.insertCell(2);
+    cel2.innerHTML = results[j].koordinaten;
+    cel1.innerHTML = results[j].name;
+    cel3.innerHTML = (twoPointDistance(results[j].koordinaten, point));
+  } 
+}
+
+/**
+ * @function drawTable2
+ * @desc in this function the second table is being added to the page with information about the nearest busses
+ * @param {*} results array of busses that are nearby the location
+ */
+ function drawTable2(results) {
+
+  // table that is getting added to the page
+  var table = document.getElementById("resultTable2");
+  
+  // iterate trough the array and add necessary attributes to table
+  for (var j = 0; j < results.length; j++) {
+    var newRow = table.insertRow(j + 1);
+    var cel1 = newRow.insertCell(0);
+    var cel2 = newRow.insertCell(1);
+    var cel3 = newRow.insertCell(2);
+    var cel4 = newRow.insertCell(3);
+    cel1.innerHTML = results[j].lbez;
+    cel2.innerHTML = results[j].richtungstext;
+    cel3.innerHTML = results[j].linientext;
+    cel4.innerHTML = results[j].abfahrtszeit;
+  } 
+}
+
+
+/**
 * @function arrayToGeoJSON
 * @desc function that converts a given array of points into a geoJSON feature collection.
 * @param inputArray Array that is to be converted
@@ -232,4 +285,101 @@ function showPosition(position) {
   //add the coordinates to the geoJson
   outJSON.features.push(pointFeature);
   x.innerHTML = JSON.stringify(outJSON);
+}
+
+/**
+ * @function bushaltestellenImUmkreis
+ * @desc this function takes an radius, aswell as an Array of bus stations. It calculates, whether a bus station is within the given radius 
+ *       -> if so, this bus station gets added to a new Array and afterwards this Array is used in function "drawTable1"
+ * @param {*} radius 
+ * @param {*} halteStellenArray 
+ */
+function radiusCalculation(radius, halteStellenArray){
+  
+  // array to save all bus stations within that radius
+  let radiusBusStation = new Array;
+   
+  // iterate trough every bus station and check, whether the bus station is within that radius
+  for (var i = 0; i <halteStellenArray.length; i++) {
+
+    if(twoPointDistance(halteStellenArray[i].koordinaten, point) < radius){
+
+    // the bus station gets added to the new Array
+    radiusBusStation.push(halteStellenArray[i]);
+
+   }
+  }
+
+  // test-log to see, whether the new Array has realistic inputs
+  console.log(radiusBusStation);
+
+  // first Table gets added to the page
+  drawTable1(radiusBusStation);
+
+
+  // iterate trough all remaining bus stations and use an API to get information like the time of departure from the bus stations
+  for (var k = 0; k <radiusBusStation.length; k++){
+
+    const xhrnew = new XMLHttpRequest();
+    const nr = radiusBusStation[k].nr;
+    xhrnew.open('GET', 'https://rest.busradar.conterra.de/prod/haltestellen/'+nr+'/abfahrten');
+    xhrnew.onload = () => {
+
+      let dataNew = JSON.parse(xhrnew.response);
+      drawTable2(dataNew);
+
+    }
+
+    xhrnew.send();
+
+    }
+  }
+
+/**
+ * @function getData
+ * @desc this function uses an API to get all of the bus station in Münster and saves them in an Array, so that other functions can work with it.
+ */
+const getData = () => {
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('GET', 'https://rest.busradar.conterra.de/prod/haltestellen');
+  xhr.onload = () => {
+
+    const data = JSON.parse(xhr.response);
+    console.log(data);
+
+    // new Array which stores all the bus stations
+    let halteStellenArray = Array.apply(null, Array[data.features.length]);
+
+    // iterate through all bus stations and store them in "halteStellenArray"
+    for (var h = 0; h < data.features.length; h++) {
+     halteStellenArray[h] = new Bushaltestelle(data.features[h].properties.nr, data.features[h].properties.lbez, data.features[h].properties.richtung, data.features[h].geometry.coordinates);
+     
+     }
+    
+    // call of the function "radiusCalculation" with the new Array
+    radiusCalculation(200, halteStellenArray);
+
+    }
+
+  xhr.send();
+}
+
+/**
+ * @class Bushaltestelle
+ * @desc This class defines what a bus station is with its necessary attributes.
+ * @param {*} nr is the number of the bus station as saved in the API.
+ * @param {*} name is the name of bus station.
+ * @param {*} richtung defines if the direction of the bus is inwards or outwards.
+ * @param {*} koordinaten are the coordinates of the bus station.
+ */
+class Bushaltestelle {
+
+  constructor(nr, name, richtung, koordinaten) {
+    this.nr = nr;
+    this.name = name;
+    this.richtung = richtung;
+    this.koordinaten = koordinaten;
+
+  }
 }
